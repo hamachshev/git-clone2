@@ -1,0 +1,67 @@
+use std::{
+    fs,
+    io::{BufReader, Read, Write},
+    path::PathBuf,
+};
+
+use flate2::write::ZlibEncoder;
+use flate2::Compression;
+
+use anyhow::Result;
+use clap::{Parser, Subcommand};
+
+#[derive(Parser)]
+#[command(version, about, long_about = None)]
+#[command(propagate_version = true)]
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Init a git repo
+    Init,
+    HashObject {
+        #[arg(short)]
+        write: Option<bool>,
+
+        #[arg(long)]
+        stdin: Option<bool>,
+
+        file: Option<PathBuf>,
+    },
+}
+
+fn main() -> Result<()> {
+    let cli = Cli::parse();
+
+    match &cli.command {
+        Commands::Init => {
+            //more to be implemnted
+            fs::create_dir_all(".git/objects")?;
+        }
+        Commands::HashObject {
+            write,
+            stdin,
+            ref file,
+        } => {
+            if let Some(write) = write {
+            } else {
+                if let Some(file) = file {
+                    let file = fs::File::open(file)?;
+                    let mut buffreader = BufReader::new(file);
+                    let mut buffer = Vec::new();
+                    let bytes = buffreader.read_to_end(&mut buffer)?;
+                    let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
+                    e.write_all(b"blob ")?;
+                    e.write_all(&[bytes as u8])?;
+                    e.write_all(0)?;
+                    e.write_all(&buffer)?;
+                    let compressed = e.finish()?;
+                }
+            }
+        }
+    }
+    Ok(())
+}
