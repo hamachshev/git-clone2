@@ -1,7 +1,7 @@
 use flate2::read::ZlibDecoder;
 use flate2::write::ZlibEncoder;
 use flate2::Compression;
-use object::Object;
+use object::{Kind, Object};
 use std::{
     ffi::CStr,
     fs,
@@ -63,39 +63,15 @@ fn main() -> Result<()> {
                 if let Some(file) = file {
                     let file =
                         fs::File::open(file).context("opening the file to read the contents")?;
-                    let mut buffreader = BufReader::new(file);
-                    let mut buffer = Vec::new();
-                    let bytes = buffreader
-                        .read_to_end(&mut buffer)
-                        .context("reading file to buffer")?;
-
-                    let file = fs::File::create_new("temp").context("wrting temp file")?;
-                    let mut hash_writer = HashWriter {
-                        hasher: Sha1::new(),
-                        writer: ZlibEncoder::new(file, Compression::default()),
+                    let len = file.metadata().context("retrieving metadata")?.len();
+                    let mut obj = Object {
+                        kind: Kind::Blob,
+                        reader: Box::new(file),
+                        len,
                     };
+                    let result = obj.write().context("writing file to objects")?;
 
-                    write!(hash_writer, "blob {}\0", bytes)
-                        .context("writing  header to the file and hashing")?;
-                    hash_writer
-                        .write_all(&buffer)
-                        .context("writing content to file and hashing")?;
-                    let result = hash_writer.hasher.finalize();
-                    let file = hash_writer
-                        .writer
-                        .finish()
-                        .context("finishing the compression")?;
-
-                    let hash = format!("{:x}", result);
-                    fs::create_dir_all(format!(".git/objects/{}", &hash[..2]))
-                        .context("creating the dir for the compressed file")?;
-                    fs::rename(
-                        "temp",
-                        format!(".git/objects/{}/{}", &hash[..2], &hash[2..]),
-                    )
-                    .context("rename the file")?;
-
-                    println!("{:x}", result)
+                    println!("{}", result)
                 }
             }
         }
@@ -117,23 +93,4 @@ fn main() -> Result<()> {
         }
     }
     Ok(())
-}
-
-struct HashWriter<W> {
-    writer: W,
-    hasher: Sha1,
-}
-
-impl<W> Write for HashWriter<W>
-where
-    W: Write,
-{
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.hasher.update(buf);
-        self.writer.write(buf)
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        self.writer.flush()
-    }
 }
