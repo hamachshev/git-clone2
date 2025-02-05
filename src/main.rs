@@ -1,10 +1,12 @@
+use flate2::write::ZlibEncoder;
+use flate2::Compression;
 use std::{
     fs,
     io::{BufReader, Read, Write},
     path::PathBuf,
 };
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 
 use hex_literal::hex;
@@ -49,18 +51,39 @@ fn main() -> Result<()> {
             if let Some(write) = write {
             } else {
                 if let Some(file) = file {
-                    let file = fs::File::open(file)?;
+                    let file =
+                        fs::File::open(file).context("opening the file to read the contents")?;
                     let mut buffreader = BufReader::new(file);
                     let mut buffer = Vec::new();
-                    let bytes = buffreader.read_to_end(&mut buffer)?;
+                    let bytes = buffreader
+                        .read_to_end(&mut buffer)
+                        .context("reading file to buffer")?;
 
-                    let mut hasher = Sha1::new();
-                    let header = format!("blob {bytes}");
-                    hasher.update(header.into_bytes());
-                    hasher.update(b"\0");
-                    hasher.update(&buffer);
+                    let file = fs::File::create_new("temp").context("wrting temp file")?;
+                    let mut hash_writer = HashWriter {
+                        hasher: Sha1::new(),
+                        writer: ZlibEncoder::new(file, Compression::default()),
+                    };
 
-                    let result = hasher.finalize();
+                    write!(hash_writer, "blob {}\0", bytes)
+                        .context("writing  header to the file and hashing")?;
+                    hash_writer
+                        .write_all(&buffer)
+                        .context("writing content to file and hashing")?;
+                    let result = hash_writer.hasher.finalize();
+                    let file = hash_writer
+                        .writer
+                        .finish()
+                        .context("finishing the compression")?;
+
+                    let hash = format!("{:x}", result);
+                    fs::create_dir_all(format!(".git/objects/{}", &hash[..2]))
+                        .context("creating the dir for the compressed file")?;
+                    fs::rename(
+                        "temp",
+                        format!(".git/objects/{}/{}", &hash[..2], &hash[2..]),
+                    )
+                    .context("rename the file")?;
 
                     println!("{:x}", result)
                 }
@@ -68,4 +91,23 @@ fn main() -> Result<()> {
         }
     }
     Ok(())
+}
+
+struct HashWriter<W> {
+    writer: W,
+    hasher: Sha1,
+}
+
+impl<W> Write for HashWriter<W>
+where
+    W: Write,
+{
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.hasher.update(buf);
+        self.writer.write(buf)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.writer.flush()
+    }
 }
