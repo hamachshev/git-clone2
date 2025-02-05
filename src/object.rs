@@ -126,6 +126,33 @@ impl Object {
 
         Ok(hash)
     }
+
+    pub fn hash(&mut self) -> Result<String> {
+        let mut buffer = Vec::new();
+        let bytes = self
+            .reader
+            .read_to_end(&mut buffer)
+            .context("reading file to buffer")?;
+
+        let mut hash_writer = HashWriter {
+            hasher: Sha1::new(),
+            writer: std::io::sink(),
+        };
+
+        match self.kind {
+            Kind::Blob => {
+                write!(hash_writer, "blob {}\0", bytes).context("hashing header")?;
+                hash_writer.write_all(&buffer).context("hashing content")?;
+            }
+            Kind::Tree => todo!(),
+            Kind::Commit => todo!(),
+        }
+
+        let result = hash_writer.hasher.finalize();
+
+        let hash = format!("{:x}", result);
+        Ok(hash)
+    }
 }
 
 struct HashWriter<W> {

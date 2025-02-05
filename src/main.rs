@@ -30,10 +30,10 @@ enum Commands {
     Init,
     HashObject {
         #[arg(short)]
-        write: Option<bool>,
+        write: bool,
 
         #[arg(long)]
-        stdin: Option<bool>,
+        stdin: bool,
 
         file: Option<PathBuf>,
     },
@@ -58,21 +58,24 @@ fn main() -> Result<()> {
             stdin,
             ref file,
         } => {
-            if let Some(write) = write {
-            } else {
-                if let Some(file) = file {
-                    let file =
-                        fs::File::open(file).context("opening the file to read the contents")?;
-                    let len = file.metadata().context("retrieving metadata")?.len();
-                    let mut obj = Object {
-                        kind: Kind::Blob,
-                        reader: Box::new(file),
-                        len,
-                    };
+            if let Some(file) = file {
+                let file = fs::File::open(file).context("opening the file to read the contents")?;
+                let len = file.metadata().context("retrieving metadata")?.len();
+                let mut obj = Object {
+                    kind: Kind::Blob,
+                    reader: Box::new(file),
+                    len,
+                };
+                if *write {
                     let result = obj.write().context("writing file to objects")?;
 
                     println!("{}", result)
+                } else {
+                    let result = obj.hash().context("computing hash")?;
+                    println!("{}", result)
                 }
+            } else {
+                anyhow::bail!("need to input file");
             }
         }
         Commands::CatFile { pretty_print, hash } => {
