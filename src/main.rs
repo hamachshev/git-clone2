@@ -1,3 +1,4 @@
+use commands::{cat_file, hash_object};
 use flate2::read::ZlibDecoder;
 use flate2::write::ZlibEncoder;
 use flate2::Compression;
@@ -14,6 +15,7 @@ use clap::{Parser, Subcommand};
 
 use sha1::{Digest, Sha1};
 
+mod commands;
 mod object;
 
 #[derive(Parser)]
@@ -58,41 +60,10 @@ fn main() -> Result<()> {
             stdin,
             ref file,
         } => {
-            if let Some(file) = file {
-                let file = fs::File::open(file).context("opening the file to read the contents")?;
-                let len = file.metadata().context("retrieving metadata")?.len();
-                let mut obj = Object {
-                    kind: Kind::Blob,
-                    reader: Box::new(file),
-                    len,
-                };
-                if *write {
-                    let result = obj.write().context("writing file to objects")?;
-
-                    println!("{}", result)
-                } else {
-                    let result = obj.hash().context("computing hash")?;
-                    println!("{}", result)
-                }
-            } else {
-                anyhow::bail!("need to input file");
-            }
+            hash_object::invoke(file, write)?;
         }
         Commands::CatFile { pretty_print, hash } => {
-            anyhow::ensure!(pretty_print, "must have pretty print for now");
-
-            let mut obj: Object = hash.as_str().try_into().context("parsing object")?;
-            match obj.kind {
-                object::Kind::Blob => {
-                    let mut buffer = Vec::new();
-                    obj.reader.read_to_end(&mut buffer)?;
-                    let contents = String::from_utf8_lossy(&buffer);
-
-                    print!("{}", &contents);
-                }
-                object::Kind::Tree => todo!(),
-                object::Kind::Commit => todo!(),
-            }
+            cat_file::invoke(*pretty_print, &hash)?;
         }
     }
     Ok(())
