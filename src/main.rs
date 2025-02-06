@@ -1,4 +1,4 @@
-use commands::{cat_file, hash_object};
+use commands::{add, cat_file, hash_object};
 use std::{fs, path::PathBuf};
 
 use anyhow::Result;
@@ -34,6 +34,9 @@ enum Commands {
 
         hash: String,
     },
+    Add {
+        file: PathBuf,
+    },
 }
 
 fn main() -> Result<()> {
@@ -54,6 +57,7 @@ fn main() -> Result<()> {
         Commands::CatFile { pretty_print, hash } => {
             cat_file::invoke(*pretty_print, &hash)?;
         }
+        Commands::Add { file } => add::invoke(file)?,
     }
     Ok(())
 }
