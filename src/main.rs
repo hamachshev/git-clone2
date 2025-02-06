@@ -1,10 +1,11 @@
-use commands::{add, cat_file, hash_object};
+use commands::{add, cat_file, hash_object, status};
 use std::{fs, path::PathBuf};
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
 mod commands;
+mod index;
 mod object;
 
 #[derive(Parser)]
@@ -37,6 +38,7 @@ enum Commands {
     Add {
         file: PathBuf,
     },
+    Status,
 }
 
 fn main() -> Result<()> {
@@ -58,6 +60,7 @@ fn main() -> Result<()> {
             cat_file::invoke(*pretty_print, &hash)?;
         }
         Commands::Add { file } => add::invoke(file)?,
+        Commands::Status => status::invoke()?,
     }
     Ok(())
 }
