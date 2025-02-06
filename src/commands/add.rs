@@ -42,6 +42,7 @@ pub fn invoke(file: &std::path::PathBuf) -> Result<()> {
 
 #[derive(Debug)]
 struct IndexFile {
+    //https://git-scm.com/docs/index-format
     ctime_seconds: u32,
     ctime_nanoseconds: u32,
     mtime_seconds: u32,
@@ -86,11 +87,19 @@ impl IndexFile {
         let flags = u16::from_be_bytes(flags_buffer);
 
         let mut entry_path = Vec::new();
-        index.read_until(0, &mut entry_path)?;
-        let mut peekreader = PeekReader::new(index);
+        let entry_path_bytes = index.read_until(0, &mut entry_path)?;
 
-        while peekreader.peek_and_delete_0().context("peeking for 0s")? == 0x00 {} //delete all the padding
-                                                                                   //zeros
+        let padding = 8 - ((entry_path_bytes + 20 + 2) % 8); // "1-8 nul bytes as necessary to pad the entry to a multiple of eight bytes while keeping the name NUL-terminated."
+
+        if padding < 8 {
+            // if padding is equal to 8 that means we have no padding ie padding above
+            // was 8 - 0, 0 being the amount of bytes that are not divisible by 8 so no padding
+            // because divisible by 8
+            for _ in 0..padding {
+                index.read(&mut [0u8]).context("reading padding")?;
+            }
+        }
+        //zeros
         entry_path.pop();
 
         let entry_path = OsString::from_vec(entry_path);
@@ -119,70 +128,4 @@ fn read_u32(bufread: &mut impl BufRead) -> Result<u32> {
     bufread.read_exact(&mut buffer)?;
     let number = u32::from_be_bytes(buffer);
     Ok(number)
-}
-
-struct PeekReader<R>
-where
-    R: BufRead,
-{
-    peek_buffer: Vec<u8>,
-    pointer: usize,
-    reader: R,
-}
-
-impl<R> PeekReader<R>
-where
-    R: BufRead,
-{
-    fn new(reader: R) -> PeekReader<R> {
-        PeekReader {
-            reader,
-            pointer: 0usize,
-            peek_buffer: Vec::new(),
-        }
-    }
-
-    fn peek_and_delete_0(&mut self) -> Result<u8> {
-        let mut buffer = [0u8];
-        self.reader.read(&mut buffer)?;
-        if buffer[0] != 0 {
-            self.peek_buffer.push(buffer[0].clone());
-        }
-        Ok(buffer[0])
-    }
-}
-
-impl<R> Read for PeekReader<R>
-where
-    R: BufRead,
-{
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        if self.peek_buffer.is_empty() {
-            return self.reader.read(buf);
-        } else {
-            match self.peek_buffer.len() {
-                len if (len - self.pointer) < buf.len() => {
-                    buf[..len].copy_from_slice(&self.peek_buffer[self.pointer..]);
-                    self.peek_buffer.clear();
-                    self.pointer = 0;
-                    self.reader.read(&mut buf[len..])
-                }
-                len if (len - self.pointer) > buf.len() => {
-                    buf.copy_from_slice(
-                        &self.peek_buffer[self.pointer..(self.pointer + buf.len())],
-                    );
-                    self.pointer += buf.len();
-                    Ok(buf.len())
-                }
-                len if (len - self.pointer) == buf.len() => {
-                    buf.copy_from_slice(&self.peek_buffer[self.pointer..]);
-                    Ok(buf.len())
-                }
-                _ => Err(Error::new(
-                    ErrorKind::Other,
-                    "this will not happen".to_string(),
-                )),
-            }
-        }
-    }
 }
