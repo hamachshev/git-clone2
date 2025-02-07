@@ -5,8 +5,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 
 mod commands;
-mod index;
-mod object;
+mod objects;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]

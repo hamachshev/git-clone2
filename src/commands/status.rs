@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 
-use crate::index::{IndexEntry, IndexFile};
+use crate::objects::index::{IndexEntry, IndexFile};
 
 pub fn invoke() -> Result<()> {
     let index_file = IndexFile::read_from_index()?;

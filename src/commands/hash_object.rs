@@ -2,7 +2,7 @@ use std::{fs, path::PathBuf};
 
 use anyhow::{Context, Result};
 
-use crate::object::{Kind, Object};
+use crate::objects::object::{Kind, Object};
 
 pub fn invoke(file: &Option<PathBuf>, write: &bool) -> Result<()> {
     if let Some(file) = file {
