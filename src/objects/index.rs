@@ -23,15 +23,12 @@ impl IndexFile {
         let mut signature = [0u8; 4];
         bufread.read_exact(&mut signature)?;
         let signature = String::from_utf8_lossy(&signature);
-        println!("{}", &signature);
 
         anyhow::ensure!(signature == "DIRC", "wrong signature, should be D I R C");
 
         let version = read_u32(&mut bufread).context("reading version")?;
-        println!("{}", &version);
 
         let entries_number = read_u32(&mut bufread).context("reading version")?;
-        println!("{}", &entries_number);
 
         let mut entries = Vec::new();
         for _ in 0..entries_number {
@@ -47,7 +44,7 @@ impl IndexFile {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Hash, Eq)]
 pub(crate) struct IndexEntry {
     //https://git-scm.com/docs/index-format
     pub ctime_seconds: u32,

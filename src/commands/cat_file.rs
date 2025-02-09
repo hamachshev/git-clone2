@@ -1,7 +1,7 @@
 use crate::objects::{
     commit::Commit,
     object::{self, Object},
-    tree::TreeEntry,
+    tree::Tree,
 };
 use anyhow::{Context, Result};
 use std::io::{BufReader, Read};
@@ -20,8 +20,10 @@ pub fn invoke(pretty_print: bool, hash: &str) -> Result<()> {
         }
         object::Kind::Tree => {
             let mut bufread = BufReader::new(&mut obj.reader);
-            while let Ok(tree_entry) = TreeEntry::read(&mut bufread) {
-                print!("{}", tree_entry);
+            let tree = Tree::read(&mut bufread)?;
+
+            for entry in tree.entries {
+                println!("{}", entry);
             }
         }
         object::Kind::Commit => {

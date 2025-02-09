@@ -1,22 +1,33 @@
-use std::{fmt::Display, io::BufRead};
+use std::{
+    fmt::Display,
+    io::{BufRead, BufReader},
+};
 
+use crate::objects::object::{self, Kind};
 use anyhow::{Context, Result};
 
+#[derive(Debug)]
 pub(crate) struct Commit {
-    tree: String,
-    parent: String,
-    author: String,
-    author_email: String,
-    author_time: String,
-    author_offset: String,
-    committer: String,
-    committer_email: String,
-    committer_time: String,
-    committer_offset: String,
-    message: String,
+    pub tree: String,
+    pub parent: String,
+    pub author: String,
+    pub author_email: String,
+    pub author_time: String,
+    pub author_offset: String,
+    pub committer: String,
+    pub committer_email: String,
+    pub committer_time: String,
+    pub committer_offset: String,
+    pub message: String,
 }
 
 impl Commit {
+    pub fn read_from_hash(hash: &str) -> Result<Commit> {
+        let mut object = object::Object::try_from(hash)?;
+        anyhow::ensure!(object.kind == Kind::Commit);
+        let mut bufread = BufReader::new(&mut object.reader);
+        Commit::read(&mut bufread)
+    }
     pub fn read(bufread: &mut impl BufRead) -> Result<Commit> {
         let mut tree_hash = String::new();
         bufread.read_line(&mut tree_hash)?;

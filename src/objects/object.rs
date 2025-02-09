@@ -7,6 +7,7 @@ use std::{
     io::{BufRead, BufReader, Read, Write},
 };
 
+#[derive(PartialEq, Eq)]
 pub(crate) enum Kind {
     Blob,
     Tree,

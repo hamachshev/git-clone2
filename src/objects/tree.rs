@@ -1,8 +1,47 @@
+use crate::objects::object::{Kind, Object};
 use anyhow::{Context, Result};
-use std::{fmt::Display, io::BufRead};
+use std::{
+    collections::HashSet,
+    fmt::Display,
+    io::{BufRead, BufReader},
+};
 
+pub(crate) struct Tree {
+    pub entries: Vec<TreeEntry>,
+}
+
+impl Tree {
+    pub fn read(bufread: &mut impl BufRead) -> Result<Tree> {
+        let mut entries = Vec::new();
+        while let Ok(entry) = TreeEntry::read(bufread) {
+            entries.push(entry);
+        }
+        if entries.len() == 0 {
+            anyhow::bail!("this has no tree entries")
+        }
+        Ok(Tree { entries })
+    }
+    pub fn traverse(self, blobs: &mut HashSet<String>) -> Result<()> {
+        for entry in self.entries {
+            match entry {
+                entry if entry.mode != 40000 => {
+                    blobs.insert(entry.hash.clone());
+                }
+                entry if entry.mode == 40000 => {
+                    let mut tree: Object = entry.hash.as_str().try_into()?;
+                    anyhow::ensure!(tree.kind == Kind::Tree, "error in formatting");
+                    let mut bufread = BufReader::new(&mut tree.reader);
+                    let tree = Tree::read(&mut bufread).context("creating tree")?;
+                    tree.traverse(blobs)?;
+                }
+                _ => anyhow::bail!("this should never be called"),
+            }
+        }
+        Ok(())
+    }
+}
 pub(crate) struct TreeEntry {
-    mode: String,
+    mode: u32,
     filename: String,
     hash: String,
 }
@@ -24,7 +63,7 @@ impl TreeEntry {
         let hash = hex::encode(hash);
 
         let tree_entry = TreeEntry {
-            mode: mode.to_string(),
+            mode: mode.parse().context("mode not a number")?,
             filename: filename.to_string(),
             hash,
         };
@@ -35,15 +74,15 @@ impl TreeEntry {
 
 impl Display for TreeEntry {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let file_type = match self.mode.as_str() {
-            "100644" => "blob",
-            "100755" => "executable",
-            "40000" => "tree",
-            "120000" => "symlink",
-            "160000" => "gitlink",
+        let file_type = match self.mode {
+            100644 => "blob",
+            100755 => "executable",
+            40000 => "tree",
+            120000 => "symlink",
+            160000 => "gitlink",
             _ => "",
         };
-        writeln!(
+        write!(
             f,
             "{:06} {} {} {}",
             self.mode, file_type, self.hash, self.filename
